@@ -27,7 +27,7 @@ If you use this code in your research, please cite it as:
 
 ```bibtex
 @misc{galvao&moral2025,
-  author       = {Luciano Galvão},
+  author       = {Luciano Galvão & Rafael Moral},
   title        = {Hybrid Non-Heuristic Variable Selection Models via Regularization for
 Black Box Models Applied to the Insurance Sector},
   year         = {2025},
