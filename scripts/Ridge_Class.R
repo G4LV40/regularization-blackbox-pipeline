@@ -1,5 +1,5 @@
 #---------------------------------------------------
-# Bibliotecas necessárias
+# Required Libraries
 #---------------------------------------------------
 library(caret)
 library(pROC)
@@ -7,33 +7,33 @@ library(glmnet)
 library(ggplot2)
 
 #---------------------------------------------------
-# Configurações iniciais
+# Initial Settings
 #---------------------------------------------------
 set.seed(42)
 
 #---------------------------------------------------
-# Carregamento dos dados
+# Data Loading
 #---------------------------------------------------
 load(file = "TravelInsurancePrediction.RData")
-dados <- df
+df_1 <- df
 rm(df)
 gc()
 
 #---------------------------------------------------
-# Pré-processamento
+# Preprocessing
 #---------------------------------------------------
-dados <- dados[, -20]  # Remover coluna não especificada
-dados$TravelInsurance <- as.factor(dados$TravelInsurance)
+df_1 <- df_1[, -20]  # Remove unspecified column
+df_1$TravelInsurance <- as.factor(df_1$TravelInsurance)
 
 #---------------------------------------------------
-# Divisão treino/teste
+# Train/Test Split
 #---------------------------------------------------
-inTraining <- createDataPartition(dados$TravelInsurance, p = 0.80, list = FALSE)
-training <- dados[inTraining, ]
-testing <- dados[-inTraining, ]
+inTraining <- createDataPartition(df_1$TravelInsurance, p = 0.80, list = FALSE)
+training <- df_1[inTraining, ]
+testing <- df_1[-inTraining, ]
 
 #---------------------------------------------------
-# Controle de treinamento
+# Training Control Configuration
 #---------------------------------------------------
 ctrl <- trainControl(method = "cv",
                      number = 10,
@@ -43,7 +43,7 @@ ctrl <- trainControl(method = "cv",
                      allowParallel = TRUE)
 
 #---------------------------------------------------
-# Treinamento do modelo Ridge com todas as variáveis
+# Ridge Model Training with All Variables
 #---------------------------------------------------
 X <- training[, -which(names(training) == "TravelInsurance")]
 Y <- training$TravelInsurance
@@ -54,14 +54,13 @@ model_full <- train(x = X, y = Y,
                     trControl = ctrl)
 
 #---------------------------------------------------
-# Coeficientes do melhor modelo Ridge
+# Coefficients from the Best Ridge Model
 #---------------------------------------------------
 coef_Ridge <- as.matrix(coef(model_full$finalModel, model_full$bestTune$lambda))
-coef_abs <- abs(coef_Ridge[-1, , drop = FALSE])  # Remove intercepto
-
+coef_abs <- abs(coef_Ridge[-1, , drop = FALSE])  # Remove intercept
 
 #---------------------------------------------------
-# Avaliar diferentes quantidades de variáveis
+# Evaluate Different Numbers of Variables
 #---------------------------------------------------
 feature_counts <- seq(5, min(50, nrow(coef_abs)), 5)
 auc_scores <- c()
@@ -78,18 +77,18 @@ for (n in feature_counts) {
   auc_val <- getTrainPerf(model_n)$TrainROC
   auc_scores <- c(auc_scores, auc_val)
   
-  # Armazena os resultados no log
+  # Store results in log
   auc_log <- rbind(auc_log, data.frame(N = n, AUC = auc_val))
 }
 
 #---------------------------------------------------
-# Selecionar número ideal de variáveis
+# Select Optimal Number of Variables
 #---------------------------------------------------
 best_n <- feature_counts[which.max(auc_scores)]
-cat("Número ótimo de variáveis:", best_n, "\n")
+cat("Optimal number of variables:", best_n, "\n")
 
 #---------------------------------------------------
-# Treinar modelo final com variáveis otimizadas
+# Final Ridge Model with Selected Variables
 #---------------------------------------------------
 top_features_ridge <- names(sort(coef_abs[,1], decreasing = TRUE))[1:best_n]
 
@@ -99,7 +98,7 @@ model_Ridge <- train(x = X[, top_features_ridge], y = Y,
                      trControl = ctrl)
 
 #---------------------------------------------------
-# Avaliação no conjunto de teste
+# Evaluation on the Test Set
 #---------------------------------------------------
 X_test <- testing[, top_features_ridge]
 Y_test <- testing$TravelInsurance
@@ -116,30 +115,28 @@ recall <- conf_matrix$byClass["Sensitivity"]
 f1_score <- 2 * (precision * recall) / (precision + recall)
 
 #---------------------------------------------------
-# Resultados
+# Evaluation Metrics
 #---------------------------------------------------
-cat("AUC (teste):", round(auc, 4), "\n")
+cat("AUC (test):", round(auc, 4), "\n")
 cat("Precision:", round(precision, 4), "\n")
 cat("Recall:", round(recall, 4), "\n")
 cat("F1-score:", round(f1_score, 4), "\n")
-cat("Variáveis selecionadas:\n")
+cat("Selected variables:\n")
 print(top_features_ridge)
 
 #---------------------------------------------------
-# Curva ROC
+# ROC Curve
 #---------------------------------------------------
 plot(roc_obj, main = paste("ROC Curve - AUC:", round(auc, 2)))
 
 #---------------------------------------------------
-# Salvando os outputs
+# Saving Outputs
 #---------------------------------------------------
 save(model_Ridge, precision, recall, f1_score, auc, top_features_ridge, 
      file = "Ridge_model_evaluation.RData")
 
-
-
 #---------------------------------------------------
-# Grafico AUC top features
+# AUC vs. Number of Features Plot
 #---------------------------------------------------
 # Identify optimal point
 best_row <- auc_log[which.max(auc_log$AUC), ]
@@ -158,49 +155,40 @@ ggplot(auc_log, aes(x = N, y = AUC)) +
        y = "AUC (cross-validation)") +
   theme_minimal(base_size = 14)
 
-# (Optional) save the plot
-# ggsave("AUC_vs_NumberVariables.png", width = 8, height = 6, dpi = 300)
-
-# (Opcional) salvar o gráfico
-# ggsave("AUC_vs_NumeroVariaveis.png", width = 8, height = 6, dpi = 300)
-
-
 
 #---------------------------------------------------
-# Matriz de confusão 
+# Confusion Matrix
 #---------------------------------------------------
-# Previsão no conjunto de teste
+# Predict on test set
 pred <- predict(model_Ridge, newdata = X_test)
 
-# Matriz de confusão
+# Confusion matrix
 conf_matrix <- confusionMatrix(pred, Y_test, positive = "S")
 
-# Exibir
+# Display
 print(conf_matrix)
 
-
 #---------------------------------------------------
-# TOP FEATURES
-# Extrair coeficientes reais do modelo Ridge final
+# Top Features
+# Extract real coefficients from final Ridge model
 coef_ridge_final <- as.matrix(coef(model_Ridge$finalModel, model_Ridge$bestTune$lambda))
 
-# Remover intercepto
+# Remove intercept
 coef_df <- data.frame(Variable = rownames(coef_ridge_final)[-1],
                       Coef = coef_ridge_final[-1, 1])
 
-# Ordenar pelos valores absolutos para pegar os mais relevantes
-n_top <- 10  # Número de variáveis a exibir
+# Order by absolute value to select most relevant variables
+n_top <- 10  # Number of top features to display
 coef_df$AbsCoef <- abs(coef_df$Coef)
 coef_top <- coef_df[order(-coef_df$AbsCoef), ][1:n_top, ]
 
-# Classificação das cores por sinal
+# Classify sign
 coef_top$Sign <- ifelse(coef_top$Coef >= 0, "Positive", "Negative")
 
-# Reordenar fator para gráfico ordenado (mantendo sinal)
+# Reorder factor for ordered plot
 coef_top$Variable <- factor(coef_top$Variable, levels = coef_top$Variable[order(coef_top$Coef)])
 
 # Plot
-library(ggplot2)
 ggplot(coef_top, aes(x = Coef, y = Variable, fill = Sign)) +
   geom_col() +
   scale_fill_manual(values = c("Positive" = "steelblue", "Negative" = "firebrick")) +

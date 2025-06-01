@@ -1,5 +1,5 @@
 #---------------------------------------------------
-# Bibliotecas necessárias
+# Required Libraries
 #---------------------------------------------------
 library(caret)
 library(pROC)
@@ -7,33 +7,33 @@ library(glmnet)
 library(ggplot2)
 
 #---------------------------------------------------
-# Configurações iniciais
+# Initial Settings
 #---------------------------------------------------
 set.seed(42)
 
 #---------------------------------------------------
-# Carregamento dos dados
+# Data Loading
 #---------------------------------------------------
 load(file = "TravelInsurancePrediction.RData")
-dados <- df
+df_1 <- df
 rm(df)
 gc()
 
 #---------------------------------------------------
-# Pré-processamento
+# Preprocessing
 #---------------------------------------------------
-dados <- dados[, -20]
-dados$TravelInsurance <- as.factor(dados$TravelInsurance)
+df_1 <- df_1[, -20]  # Remove unspecified column
+df_1$TravelInsurance <- as.factor(df_1$TravelInsurance)
 
 #---------------------------------------------------
-# Divisão treino/teste
+# Train/Test Split
 #---------------------------------------------------
-inTraining <- createDataPartition(dados$TravelInsurance, p = 0.80, list = FALSE)
-training <- dados[inTraining, ]
-testing <- dados[-inTraining, ]
+inTraining <- createDataPartition(df_1$TravelInsurance, p = 0.80, list = FALSE)
+training <- df_1[inTraining, ]
+testing <- df_1[-inTraining, ]
 
 #---------------------------------------------------
-# Controle de treinamento
+# Training Control Setup
 #---------------------------------------------------
 ctrl <- trainControl(method = "cv",
                      number = 10,
@@ -43,12 +43,12 @@ ctrl <- trainControl(method = "cv",
                      allowParallel = TRUE)
 
 #---------------------------------------------------
-# Treinamento do modelo Elastic Net com todas as variáveis
+# Elastic Net Model Training with All Variables
 #---------------------------------------------------
 X <- training[, -which(names(training) == "TravelInsurance")]
 Y <- training$TravelInsurance
 
-# Define grade de busca para alpha e lambda
+# Define search grid for alpha and lambda
 elastic_grid <- expand.grid(alpha = seq(0.1, 0.9, by = 0.2),
                             lambda = exp(seq(-6, 1, length = 50)))
 
@@ -59,13 +59,13 @@ model_full <- train(x = X, y = Y,
                     trControl = ctrl)
 
 #---------------------------------------------------
-# Coeficientes do melhor modelo Elastic Net
+# Coefficients from Best Elastic Net Model
 #---------------------------------------------------
 coef_EN <- as.matrix(coef(model_full$finalModel, model_full$bestTune$lambda))
-coef_abs <- abs(coef_EN[-1, , drop = FALSE])
+coef_abs <- abs(coef_EN[-1, , drop = FALSE])  # Remove intercept
 
 #---------------------------------------------------
-# Avaliar diferentes quantidades de variáveis
+# Evaluate Different Numbers of Variables
 #---------------------------------------------------
 feature_counts <- seq(5, min(50, nrow(coef_abs)), 5)
 auc_scores <- c()
@@ -86,13 +86,13 @@ for (n in feature_counts) {
 }
 
 #---------------------------------------------------
-# Selecionar número ideal de variáveis
+# Select Optimal Number of Variables
 #---------------------------------------------------
 best_n <- feature_counts[which.max(auc_scores)]
-cat("Número ótimo de variáveis:", best_n, "\n")
+cat("Optimal number of variables:", best_n, "\n")
 
 #---------------------------------------------------
-# Treinar modelo final com variáveis otimizadas
+# Final Elastic Net Model with Selected Variables
 #---------------------------------------------------
 top_features_en <- names(sort(coef_abs[,1], decreasing = TRUE))[1:best_n]
 
@@ -103,7 +103,7 @@ model_EN <- train(x = X[, top_features_en], y = Y,
                   trControl = ctrl)
 
 #---------------------------------------------------
-# Avaliação no conjunto de teste
+# Evaluation on Test Set
 #---------------------------------------------------
 X_test <- testing[, top_features_en]
 Y_test <- testing$TravelInsurance
@@ -120,33 +120,31 @@ recall <- conf_matrix$byClass["Sensitivity"]
 f1_score <- 2 * (precision * recall) / (precision + recall)
 
 #---------------------------------------------------
-# Resultados
+# Output Results
 #---------------------------------------------------
-cat("AUC (teste):", round(auc, 4), "\n")
+cat("AUC (test):", round(auc, 4), "\n")
 cat("Precision:", round(precision, 4), "\n")
 cat("Recall:", round(recall, 4), "\n")
 cat("F1-score:", round(f1_score, 4), "\n")
-cat("Variáveis selecionadas:\n")
+cat("Selected variables:\n")
 print(top_features_en)
 
 #---------------------------------------------------
-# Curva ROC
+# ROC Curve Plot
 #---------------------------------------------------
 plot(roc_obj, main = paste("ROC Curve - AUC:", round(auc, 2)))
 
 #---------------------------------------------------
-# Salvando os outputs
+# Save Outputs
 #---------------------------------------------------
 save(model_EN, precision, recall, f1_score, auc, top_features_en,
      file = "ElasticNet_model_evaluation.RData")
 
 #---------------------------------------------------
-# Gráfico AUC top features
+# AUC vs. Number of Selected Variables Plot
 #---------------------------------------------------
-# Identify optimal point
 best_row <- auc_log[which.max(auc_log$AUC), ]
 
-# Plot
 ggplot(auc_log, aes(x = N, y = AUC)) +
   geom_line(color = "orange", linewidth = 1.2) +
   geom_point(color = "orange", size = 2) +
@@ -159,13 +157,14 @@ ggplot(auc_log, aes(x = N, y = AUC)) +
        x = "Number of Selected Variables",
        y = "AUC (cross-validation)") +
   theme_minimal(base_size = 14)
+
 #---------------------------------------------------
-# Matriz de confusão
+# Confusion Matrix
 #---------------------------------------------------
 print(conf_matrix)
 
 #---------------------------------------------------
-# TOP FEATURES com sinal
+# Top Features with Sign
 #---------------------------------------------------
 coef_en_final <- as.matrix(coef(model_EN$finalModel, model_EN$bestTune$lambda))
 
@@ -175,16 +174,16 @@ coef_df <- data.frame(Variable = rownames(coef_en_final)[-1],
 n_top <- 10
 coef_df$AbsCoef <- abs(coef_df$Coef)
 coef_top <- coef_df[order(-coef_df$AbsCoef), ][1:n_top, ]
-coef_top$Sign <- ifelse(coef_top$Coef >= 0, "Positivo", "Negativo")
+coef_top$Sign <- ifelse(coef_top$Coef >= 0, "Positive", "Negative")
 coef_top$Variable <- factor(coef_top$Variable, levels = coef_top$Variable[order(coef_top$Coef)])
 
 ggplot(coef_top, aes(x = Coef, y = Variable, fill = Sign)) +
   geom_col() +
-  scale_fill_manual(values = c("Positivo" = "steelblue", "Negativo" = "firebrick")) +
+  scale_fill_manual(values = c("Positive" = "steelblue", "Negative" = "firebrick")) +
   geom_text(aes(label = round(Coef, 3)), hjust = ifelse(coef_top$Coef > 0, -0.1, 1.1), size = 4.2) +
-  labs(title = paste("Top", n_top, "Coeficientes do Modelo Elastic Net"),
-       x = "Coeficiente (com sinal)",
-       y = "Variável") +
+  labs(title = paste("Top", n_top, "Coefficients of the Elastic Net Model"),
+       x = "Coefficient (with sign)",
+       y = "Variable") +
   theme_minimal(base_size = 14) +
   theme(plot.title = element_text(face = "bold"),
         legend.position = "bottom") +

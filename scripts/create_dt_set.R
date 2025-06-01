@@ -7,17 +7,17 @@ library(DMwR2)
 library(smotefamily)
 
 # Load the CSV file
-dados <- read.csv("TravelInsurancePrediction.csv", header = TRUE)
-dados <- dados[, 2:10]  # Drop the first column if it's just an index
+df_1 <- read.csv("TravelInsurancePrediction.csv", header = TRUE)
+df_1 <- df_1[, 2:10]  # Drop the first column if it's just an index
 
 # Convert to data frame
-dados <- as.data.frame(dados)
+df_1 <- as.data.frame(df_1)
 
 # Check the class
-class(dados)
+class(df_1)
 
 # Feature engineering
-dados <- dados %>%
+df_1 <- df_1 %>%
   mutate(
     # 1. Family income per capita
     IncomePerCapita = AnnualIncome / FamilyMembers,
@@ -94,7 +94,7 @@ dados <- dados %>%
     RiskScoreNorm = scale(RiskScore),
     
     # 24. Simulated cluster score (use real clustering in production)
-    ClusterScore = kmeans(select(dados, AnnualIncome, Age, PrivateEmployment), centers = 3)$cluster,
+    ClusterScore = kmeans(select(df_1, AnnualIncome, Age, PrivateEmployment), centers = 3)$cluster,
     
     # 25. Average insurance take-up per cluster
     ClusterInsuranceRate = ave(TravelInsurance, ClusterScore, FUN = mean),
@@ -104,51 +104,51 @@ dados <- dados %>%
   )
 
 # View financial dependence
-dados$FinancialDependence
+df_1$FinancialDependence
 
 # Create dummy variables for categorical features
-dados <- dummy_cols(dados,
+df_1 <- dummy_cols(df_1,
                     select_columns = c("AgeGroup", "Employment.Type", "GraduateOrNot", "FrequentFlyer", "EverTravelledAbroad"),
                     remove_first_dummy = TRUE,  # Avoid multicollinearity
                     remove_selected_columns = TRUE  # Remove original categorical columns
 )
 
 # Rename dummy column for consistency
-colnames(dados)[colnames(dados) == "Employment.Type_Private Sector/Self Employed"] <- "Employment_Type"
+colnames(df_1)[colnames(df_1) == "Employment.Type_Private Sector/Self Employed"] <- "Employment_Type"
 
 # Check label proportion (imbalance)
-table(dados$TravelInsurance)[2] / dim(dados)[1]
-table(dados$TravelInsurance)[1] / dim(dados)[1]
+table(df_1$TravelInsurance)[2] / dim(df_1)[1]
+table(df_1$TravelInsurance)[1] / dim(df_1)[1]
 
 # Recode target variable as factors (S = Yes, N = No)
-dados <- dados %>%
+df_1 <- df_1 %>%
   mutate(TravelInsurance = recode(TravelInsurance, `0` = "N", `1` = "S"))
 
 # Check structure
-str(dados)
+str(df_1)
 
 # Separate predictors (X) and target variable (Y)
-X <- dados[, !colnames(dados) %in% "TravelInsurance"]
-Y <- dados$TravelInsurance
+X <- df_1[, !colnames(df_1) %in% "TravelInsurance"]
+Y <- df_1$TravelInsurance
 
 # Apply SMOTE to balance the dataset
-dados_smote <- SMOTE(X, Y, K = 5, dup_size = 1)
+df_1_smote <- SMOTE(X, Y, K = 5, dup_size = 1)
 
 # Rebuild the dataset with balanced target
-dados_balanciados <- dados_smote$data
+df_1_balanciados <- df_1_smote$data
 
 # Rename 'class' back to 'TravelInsurance'
-colnames(dados_balanciados)[colnames(dados_balanciados) == "class"] <- "TravelInsurance"
+colnames(df_1_balanciados)[colnames(df_1_balanciados) == "class"] <- "TravelInsurance"
 
 # Check new class distribution
-table(dados_balanciados$TravelInsurance)
+table(df_1_balanciados$TravelInsurance)
 
 # Final data transformations
-dados$TravelInsurance <- as.factor(dados$TravelInsurance)
-dados$ChronicByAge <- log(dados$ChronicByAge)
+df_1$TravelInsurance <- as.factor(df_1$TravelInsurance)
+df_1$ChronicByAge <- log(df_1$ChronicByAge)
 
 # Final dataset for modeling
-df <- dados_balanciados
+df <- df_1_balanciados
 str(df)
 
 # Save the final dataset as .RData file
