@@ -1,5 +1,5 @@
 #---------------------------------------------------
-# Bibliotecas necessárias
+# Required libraries
 #---------------------------------------------------
 library(caret)
 library(pROC)
@@ -14,13 +14,13 @@ library(tidyr)
 library(knitr)
 
 #---------------------------------------------------
-# Configurações iniciais
+# Initial settings
 #---------------------------------------------------
 set.seed(42)
 h2o.init()
 
 #---------------------------------------------------
-# Carregamento dos dados
+# Data loading
 #---------------------------------------------------
 load(file = "TravelInsurancePrediction.RData")
 dados <- df
@@ -28,25 +28,25 @@ rm(df)
 gc()
 
 #---------------------------------------------------
-# Divisão dos dados em treino e teste
+# Train-test split
 #---------------------------------------------------
 inTraining <- createDataPartition(dados$TravelInsurance, p = 0.80, list = FALSE)
 training <- dados[inTraining, ]
 testing <- dados[-inTraining, ]
 
-# Definição do número de folds
+# Define the number of folds
 k <- 5
 
 #---------------------------------------------------
-# Modelos Black-Box
+# Black-box models
 #---------------------------------------------------
 model_types <- c("Random Forest", "XGBoost", "H2O GBM", "LightGBM", "CatBoost")
 
 #---------------------------------------------------
-# Funções auxiliares
+# Auxiliary functions
 #---------------------------------------------------
 
-# Avaliação do modelo
+# Model evaluation
 evaluate_model <- function(predictions, prob_predictions, true_labels) {
   roc_obj <- roc(response = true_labels, predictor = prob_predictions[, "S"])
   auc_value <- auc(roc_obj)
@@ -59,7 +59,7 @@ evaluate_model <- function(predictions, prob_predictions, true_labels) {
   return(list(precision = precision, recall = recall, f1_score = f1_score, auc = auc_value))
 }
 
-# Treinamento e avaliação de um modelo
+# Train and evaluate a model
 train_and_evaluate <- function(X_train, Y_train, X_test, Y_test, model_type, params) {
   Y_train <- factor(Y_train, levels = c("N", "S"))
   Y_test <- factor(Y_test, levels = c("N", "S"))
@@ -121,7 +121,7 @@ train_and_evaluate <- function(X_train, Y_train, X_test, Y_test, model_type, par
   return(evaluate_model(predictions, prob_predictions, Y_test))
 }
 
-# Avaliação k-Fold
+# k-Fold evaluation
 train_and_evaluate_kfold <- function(X, Y, model_type, params, k) {
   folds <- createFolds(Y, k = k)
   
@@ -144,7 +144,7 @@ train_and_evaluate_kfold <- function(X, Y, model_type, params, k) {
   ))
 }
 
-# Random Search
+# Random hyperparameter search
 random_search <- function(model_type, X_train, Y_train, k) {
   grid <- switch(model_type,
                  "Random Forest" = expand.grid(ntree = sample(100:500, 5),
@@ -178,10 +178,9 @@ random_search <- function(model_type, X_train, Y_train, k) {
   return(best_params)
 }
 
-# Seleção de Features por importância
-
+# Feature selection by importance
 get_top_features <- function(X, Y, model_type, top_n = 20) {
-  Y <- factor(Y, levels = c("N", "S"))  # Corrige o problema do tipo
+  Y <- factor(Y, levels = c("N", "S"))  # Fix factor levels
   
   if (model_type == "Random Forest") {
     model <- randomForest(x = X, y = Y, ntree = 200)
@@ -216,17 +215,15 @@ get_top_features <- function(X, Y, model_type, top_n = 20) {
     names(importance_vals) <- colnames(X)
     
   } else {
-    stop("Modelo não reconhecido para seleção de variáveis:", model_type)
+    stop("Unrecognized model for feature selection:", model_type)
   }
   
-  # Selecionar apenas as top variáveis
   top_features <- names(sort(importance_vals, decreasing = TRUE))[1:min(top_n, length(importance_vals))]
   return(top_features)
 }
 
-
 #---------------------------------------------------
-# Execução principal com validação do número ótimo de features
+# Main execution with optimal feature count validation
 #---------------------------------------------------
 best_results <- data.frame()
 auc_log_all <- list()
@@ -279,11 +276,11 @@ for (model_type in model_types) {
 }
 
 #---------------------------------------------------
-# Visualização final
+# Final visualization
 #---------------------------------------------------
-kable(best_results, caption = "Melhores modelos por técnica e número ótimo de variáveis")
+kable(best_results, caption = "Best models by technique and optimal number of features")
 
-# Gráficos de AUC vs. Número de Features por modelo
+# AUC vs. Number of Features plots by model
 for (model in names(auc_log_all)) {
   auc_data <- auc_log_all[[model]]
   best_row <- auc_data[which.max(auc_data$AUC), ]
@@ -294,12 +291,10 @@ for (model in names(auc_log_all)) {
       geom_vline(xintercept = best_row$N, linetype = "dashed", color = "red") +
       geom_point(aes(x = best_row$N, y = best_row$AUC), color = "red", size = 3) +
       annotate("text", x = best_row$N, y = best_row$AUC + 0.002,
-               label = paste("Ótimo:", best_row$N, "variáveis"),
+               label = paste("Best:", best_row$N, "variables"),
                color = "red", hjust = -0.1, size = 4.5) +
-      labs(title = paste("AUC vs Número de Features -", model),
-           x = "Número de Variáveis Selecionadas", y = "AUC") +
+      labs(title = paste("AUC vs Number of Features -", model),
+           x = "Number of Selected Features", y = "AUC") +
       theme_minimal(base_size = 14)
   )
 }
-
-

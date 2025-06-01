@@ -1,6 +1,6 @@
 #---------------------------------------------------
-# Bibliotecas necessárias
-#-------------------------------------------------------------------------------
+# Required Libraries
+#---------------------------------------------------
 library(caret)
 library(pROC)
 library(randomForest)
@@ -9,41 +9,38 @@ library(h2o)
 library(lightgbm)
 library(catboost)
 
-#-------------------------------------------------------------------------------
-# Configurações iniciais
-#-------------------------------------------------------------------------------
-set.seed(42)      # Definir semente para reprodutibilidade
-h2o.init()        # Inicializar o cluster H2O
-
-#-------------------------------------------------------------------------------
-# Carregamento dos dados
-#-------------------------------------------------------------------------------
-load(file = "TravelInsurancePrediction.RData")  # Carregar dataset
-dados <- df
-rm(df)             # Remover objeto original para liberar memória
-gc()               # Limpeza de memória (garbage collection)
-
-#banco de amostragem
-#source("amostra_100.R")
-
-
-#-------------------------------------------------------------------------------
-# Divisão dos dados em treino e teste
 #---------------------------------------------------
-inTraining <- createDataPartition(dados$TravelInsurance, p = 0.80, list = FALSE)
-training <- dados[inTraining, ]
-testing <- dados[-inTraining, ]
+# Initial Configuration
+#---------------------------------------------------
+set.seed(42)      # Set seed for reproducibility
+h2o.init()        # Initialize H2O cluster
 
-# Verificar a distribuição da variável resposta
+#---------------------------------------------------
+# Data Loading
+#---------------------------------------------------
+load(file = "TravelInsurancePrediction.RData")  # Load dataset
+df_1 <- df
+rm(df)             # Remove original object to free memory
+gc()               # Garbage collection
+
+
+#---------------------------------------------------
+# Split data into training and test sets
+#---------------------------------------------------
+inTraining <- createDataPartition(df_1$TravelInsurance, p = 0.80, list = FALSE)
+training <- df_1[inTraining, ]
+testing <- df_1[-inTraining, ]
+
+# Check distribution of target variable
 table(training$TravelInsurance)
 table(testing$TravelInsurance)
 
-# Definicao do numero de folds
-k= 5
+# Define number of folds
+k = 5
 
-#-------------------------------------------------------------------------------
-# Carregar variáveis selecionadas via regularização
-#-------------------------------------------------------------------------------
+#---------------------------------------------------
+# Load features selected via regularization
+#---------------------------------------------------
 load("Ridge_model_evaluation.RData")
 ridge_features <- rownames(varImp(model_Ridge, scale = FALSE)$importance)
 
@@ -53,22 +50,21 @@ lasso_features <- rownames(varImp(model_Lasso, scale = FALSE)$importance)
 load("ElasticNet_model_evaluation.RData")
 elasticnet_features <- rownames(varImp(model_EN, scale = FALSE)$importance)
 
-# Agrupar os conjuntos de variáveis
+# Group feature sets
 feature_sets <- list(Ridge = ridge_features,
                      Lasso = lasso_features,
                      ElasticNet = elasticnet_features)
 
-#-------------------------------------------------------------------------------
-# Definição dos modelos a serem avaliados-
+#---------------------------------------------------
+# Define model types to be evaluated
 #---------------------------------------------------
 model_types <- c("Random Forest", "XGBoost", "H2O GBM", "LightGBM", "CatBoost")
 
-#-------------------------------------------------------------------------------
-# Funções auxiliares
-#-------------------------------------------------------------------------------
+#---------------------------------------------------
+# Auxiliary Functions
+#---------------------------------------------------
 
-#### Função para calcular métricas de avaliação do modelo
-
+# Function to compute evaluation metrics
 evaluate_model <- function(predictions, prob_predictions, true_labels) {
   roc_obj <- roc(response = true_labels, predictor = prob_predictions[, "S"])
   auc_value <- auc(roc_obj)
@@ -84,22 +80,19 @@ evaluate_model <- function(predictions, prob_predictions, true_labels) {
               auc = auc_value))
 }
 
-
-# Função para instanciar os modelos comparativos
+# Load model training functions
 source("funct_Models_.R")
 
-# Função para otimização de hiperparâmetros via Random Search
+# Load random search function
 source("funct_RND_search.R")
 
-
-
 #---------------------------------------------------
-# Execução principal: Treinamento e Avaliação Final 
+# Main Execution: Training and Final Evaluation
 #---------------------------------------------------
 
-best_results <- NULL  # Inicializar resultados
+best_results <- NULL  # Initialize results object
 
-# Loop para otimizar cada modelo com cada conjunto de features
+# Loop through each model and feature set combination
 for (model_type in model_types) {
   for (regularization in names(feature_sets)) {
     
@@ -109,20 +102,20 @@ for (model_type in model_types) {
     X_train <- training[, features, drop = FALSE]
     Y_train <- training$TravelInsurance
     
-    cat("Otimizando modelo:", model_type,
-        "com features de:", regularization, "\n")
+    cat("Optimizing model:", model_type,
+        "with features from:", regularization, "\n")
     
-    # 1. Busca hiperparâmetros via Random Search + K-Fold
+    # 1. Hyperparameter tuning via Random Search + k-Fold
     best_params <- random_search(model_type, X_train, Y_train, k)
     
-    # 2. Avaliação final também via K-Fold
+    # 2. Final evaluation also via k-Fold
     result <- train_and_evaluate_kfold(X_train,
                                        Y_train,
                                        model_type,
                                        best_params,
                                        k )
     
-    # 3. Monta linha de resultados
+    # 3. Compile result row
     result_row <- data.frame(
       Model = model_type,
       Regularization = regularization,
@@ -132,12 +125,13 @@ for (model_type in model_types) {
       F1_Score = result$f1_score
     )
     
+    # Append hyperparameters to result row
     if (!is.null(best_params)) {
       params_df <- as.data.frame(t(best_params))
       result_row <- cbind(result_row, params_df)
     }
     
-    # 4. Armazena resultados de forma segura
+    # 4. Safely store the results
     if (is.null(best_results)) {
       best_results <- result_row
     } else {
@@ -148,7 +142,6 @@ for (model_type in model_types) {
 }
 
 #---------------------------------------------------
-# Visualização dos Resultados Finais (médias dos folds)
+# Visualization of Final Results (fold means)
 #---------------------------------------------------
 print(best_results)
-

@@ -1,8 +1,10 @@
-
+#---------------------------------------------------
+# Function to perform random search for hyperparameter optimization
+#---------------------------------------------------
 random_search <- function(model_type, X_train, Y_train, k) {
   search_grid <- list()
   
-  # Definindo o grid de parâmetros para cada modelo
+  # Define parameter grid for each model type
   if (model_type == "Random Forest") {
     search_grid <- expand.grid(
       ntree = sample(seq(100, 500, by = 100), 5),
@@ -29,7 +31,7 @@ random_search <- function(model_type, X_train, Y_train, k) {
     )
     
   } else if (model_type == "CatBoost") {
-    # Garantir mesmo comprimento nas colunas
+    # Ensure equal column lengths
     depths <- sample(4:10, 5, replace = TRUE)
     iterations <- sample(seq(50, 500, by = 50), 5, replace = TRUE)
     learning_rates <- runif(5, 0.01, 0.3)
@@ -44,14 +46,14 @@ random_search <- function(model_type, X_train, Y_train, k) {
   best_model <- NULL
   best_auc <- -Inf
   
-  # Loop para avaliar todas as combinações de parâmetros
+  # Loop to evaluate all parameter combinations
   for (i in 1:nrow(search_grid)) {
     params <- as.list(search_grid[i, ])
     
-    # Avaliação do modelo usando K-Fold Cross Validation
+    # Evaluate model using k-Fold Cross Validation
     result <- train_and_evaluate_kfold(X_train, Y_train, model_type, params, k)
     
-    # Se a AUC for melhor, salvar os melhores parâmetros
+    # If AUC improves, store best parameters
     if (result$auc > best_auc) {
       best_auc <- result$auc
       best_model <- params
@@ -60,4 +62,3 @@ random_search <- function(model_type, X_train, Y_train, k) {
   
   return(best_model)
 }
-
