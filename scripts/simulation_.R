@@ -149,7 +149,7 @@ df_results <- simulate_multiple(n_sim = 10)
 # Export results
 # save(df_results, file = "results_simulation.RDA")
 write.csv(df_results, "results_simulation.csv", row.names = FALSE)
-
+save(df_results,file = "results_simulation.RData")
 #---------------------------------------------------
 # Boxplot by n (panel 1)
 #---------------------------------------------------
@@ -181,7 +181,7 @@ for (current_n in sample_sizes) {
 }
 
 #---------------------------------------------------
-# Boxplot using facet_wrap by model (panel 2)
+# Boxplot using facet_wrap by model COLOR
 #---------------------------------------------------
 for (current_n in sample_sizes) {
   data_n <- subset(df_results, n == current_n)
@@ -205,6 +205,34 @@ for (current_n in sample_sizes) {
   print(p)
   # ggsave(paste0("rmse_facet_n", current_n, ".png"), plot = p, width = 12, height = 8, dpi = 300)
 }
+
+
+#---------------------------------------------------
+# Boxplot using facet_wrap by model Black and white
+#---------------------------------------------------
+
+for (current_n in sample_sizes) {
+  data_n <- subset(df_results, n == current_n)
+  
+  p <- ggplot(data_n, aes(x = factor(p), y = rmse)) +
+    geom_boxplot(outlier.size = 0.8, outlier.alpha = 0.4, color = "black", fill = NA) +
+    facet_wrap(~ model, nrow = 3) +
+    theme_minimal(base_size = 12) +
+    labs(
+      title = paste("RMSE Distribution by Model - n =", current_n),
+      x = " ",
+      y = "RMSE"
+    ) +
+    theme(
+      strip.text = element_text(face = "bold", size = 11),
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      legend.position = "none"
+    )
+  
+  print(p)
+  # ggsave(paste0("rmse_facet_n", current_n, ".png"), plot = p, width = 12, height = 8, dpi = 300)
+}
+
 
 #---------------------------------------------------
 # Dot chart: mean RMSE by model
@@ -240,3 +268,7 @@ ggplot(df, aes(x = RMSE, y = Model)) +
   ) +
   theme_minimal(base_size = 14) +
   theme(panel.grid.major.y = element_blank())
+
+
+
+
