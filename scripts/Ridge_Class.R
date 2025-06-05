@@ -138,22 +138,22 @@ save(model_Ridge, precision, recall, f1_score, auc, top_features_ridge,
 #---------------------------------------------------
 # AUC vs. Number of Features Plot
 #---------------------------------------------------
-# Identify optimal point
+
+
 best_row <- auc_log[which.max(auc_log$AUC), ]
 
-# Plot
-ggplot(auc_log, aes(x = N, y = AUC)) +
+plot_Ridge <- ggplot(auc_log, aes(x = N, y = AUC)) +
   geom_line(color = "orange", linewidth = 1.2) +
-  geom_point(color = "orange", size = 2) +
+  geom_point(color = "orange", size = 3) +
   geom_vline(xintercept = best_row$N, linetype = "dashed", color = "red", linewidth = 1) +
-  geom_point(aes(x = best_row$N, y = best_row$AUC), color = "red", size = 3) +
+  geom_point(aes(x = best_row$N, y = best_row$AUC), color = "red", size = 4) +
   annotate("text", x = best_row$N, y = best_row$AUC + 0.002,
            label = paste("Optimal:", best_row$N, "variables"),
-           color = "red", hjust = -0.1, size = 4.5) +
+           color = "red", hjust = -0.1, size = 5.5) +
   labs(title = "AUC vs. Number of Selected Variables",
        x = "Number of Selected Variables",
        y = "AUC (cross-validation)") +
-  theme_minimal(base_size = 14)
+  theme_minimal(base_size = 18)
 
 
 #---------------------------------------------------
